@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Flashcard Forge</title>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #6366f1;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* === LAYOUT === */
+        .container { width: 100%; max-width: 900px; display: grid; grid-template-columns: 1fr 1.5fr; gap: 40px; margin-top: 20px; }
+        
+        @media (max-width: 800px) {
+            .container { grid-template-columns: 1fr; }
+        }
+
+        /* === CREATOR PANEL === */
+        .creator-panel {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 20px;
+            border: 1px solid #334155;
+            height: fit-content;
+        }
+
+        h3 { margin-top: 0; color: var(--primary); }
+
+        input, select, btn { width: 100%; box-sizing: border-box; }
+
+        input, select {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: block;
+            width: 100%;
+        }
+
+        .btn-add {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 800;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* === CARD DISPLAY AREA === */
+        .display-panel { display: flex; flex-direction: column; align-items: center; }
+
+        .filter-group { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+
+        .btn-filter {
+            background: #334155;
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .btn-filter.active { background: var(--primary); }
+
+        /* === 3D CARD === */
+        .scene { width: 100%; height: 250px; perspective: 1000px; }
+        .card {
+            width: 100%; height: 100%; position: relative;
+            transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer;
+        }
+        .card.is-flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; display: flex; align-items: center;
+            justify-content: center; padding: 20px; text-align: center;
+            border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+        }
+        .card-front { background: #2d3748; border: 2px solid #4a5568; }
+        .card-back { background: var(--primary); transform: rotateY(180deg); }
+
+        .controls { margin-top: 30px; display: flex; gap: 20px; align-items: center; }
+        .btn-circle {
+            width: 50px; height: 50px; border-radius: 50%; border: none;
+            cursor: pointer; font-size: 1.2rem; font-weight: bold;
+        }
+        #correct { background: var(--success); color: white; }
+        #wrong { background: var(--danger); color: white; }
+    </style>
+</head>
+<body>
+
+    <h1>Flashcard Forge <small style="font-size: 1rem; opacity: 0.5;">v2.0 Dynamic</small></h1>
+
+    <div class="container">
+        <div class="creator-panel">
+            <h3>Add New Card</h3>
+            <label>Question</label>
+            <input type="text" id="new-q" placeholder="e.g. What is gravity?">
+            
+            <label>Answer</label>
+            <input type="text" id="new-a" placeholder="e.g. A force of attraction...">
+
+            <label>Category</label>
+            <div style="display: flex; gap: 5px;">
+                <select id="cat-select">
+                    <option value="General">General</option>
+                    <option value="Coding">Coding</option>
+                </select>
+                <input type="text" id="new-cat-name" placeholder="New Category" style="margin-bottom:0; width: 100px;">
+                <button id="add-cat-btn" class="btn-add" style="width: 50px;">+</button>
+            </div>
+            <p style="font-size: 0.7rem; color: var(--text-dim); margin-bottom: 15px;">Add a name and click '+' to create a new section.</p>
+
+            <button class="btn-add" id="save-card">Save Card to Deck</button>
+            <button id="clear-data" style="background:none; border:none; color:var(--danger); font-size:0.7rem; margin-top:20px; cursor:pointer;">Reset All Data</button>
+        </div>
+
+        <div class="display-panel">
+            <div class="filter-group" id="filter-bar">
+                <button class="btn-filter active" data-filter="All">All</button>
+            </div>
+
+            <div class="scene">
+                <div class="card" id="main-card">
+                    <div class="card-face card-front">
+                        <h2 id="display-q">Add your first card to start!</h2>
+                    </div>
+                    <div class="card-face card-back">
+                        <h2 id="display-a">Answer will appear here.</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn-circle" id="wrong">✕</button>
+                <div id="progress">0 / 0</div>
+                <button class="btn-circle" id="correct">✓</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // --- DATA CORE ---
+            let categories = JSON.parse(localStorage.getItem('cats')) || ["General", "Coding"];
+            let deck = JSON.parse(localStorage.getItem('cards')) || [];
+            let activeDeck = [...deck];
+            let currentIdx = 0;
+
+            function init() {
+                renderFilters();
+                renderCard();
+            }
+
+            // --- RENDER FUNCTIONS ---
+            function renderFilters() {
+                $('#filter-bar').html('<button class="btn-filter active" data-filter="All">All</button>');
+                $('#cat-select').html('');
+                
+                categories.forEach(cat => {
+                    $('#filter-bar').append(`<button class="btn-filter" data-filter="${cat}">${cat}</button>`);
+                    $('#cat-select').append(`<option value="${cat}">${cat}</option>`);
+                });
+            }
+
+            function renderCard() {
+                if (activeDeck.length === 0) {
+                    $('#display-q').text("No cards found in this section.");
+                    $('#display-a').text("Add one on the left!");
+                    $('#progress').text("0 / 0");
+                    return;
+                }
+                $('#main-card').removeClass('is-flipped');
+                setTimeout(() => {
+                    $('#display-q').text(activeDeck[currentIdx].q);
+                    $('#display-a').text(activeDeck[currentIdx].a);
+                    $('#progress').text(`${currentIdx + 1} / ${activeDeck.length}`);
+                }, 150);
+            }
+
+            // --- LOGIC ---
+            $('#add-cat-btn').click(function() {
+                const name = $('#new-cat-name').val().trim();
+                if (name && !categories.includes(name)) {
+                    categories.push(name);
+                    localStorage.setItem('cats', JSON.stringify(categories));
+                    $('#new-cat-name').val('');
+                    renderFilters();
+                }
+            });
+
+            $('#save-card').click(function() {
+                const q = $('#new-q').val();
+                const a = $('#new-a').val();
+                const cat = $('#cat-select').val();
+
+                if (q && a) {
+                    deck.push({ q, a, cat });
+                    localStorage.setItem('cards', JSON.stringify(deck));
+                    $('#new-q, #new-a').val('');
+                    activeDeck = [...deck];
+                    renderCard();
+                }
+            });
+
+            $(document).on('click', '.btn-filter', function() {
+                $('.btn-filter').removeClass('active');
+                $(this).addClass('active');
+                const filter = $(this).data('filter');
+                
+                activeDeck = (filter === "All") ? [...deck] : deck.filter(c => c.cat === filter);
+                currentIdx = 0;
+                renderCard();
+            });
+
+            $('#main-card').click(function() { $(this).toggleClass('is-flipped'); });
+
+            $('#correct').click(function() {
+                if (activeDeck.length === 0) return;
+                activeDeck.splice(currentIdx, 1);
+                if (currentIdx >= activeDeck.length) currentIdx = 0;
+                renderCard();
+            });
+
+            $('#wrong').click(function() {
+                if (activeDeck.length === 0) return;
+                currentIdx = (currentIdx + 1) % activeDeck.length;
+                renderCard();
+            });
+
+            $('#clear-data').click(function() {
+                localStorage.clear();
+                location.reload();
+            });
+
+            init();
+        });
+    </script>
+</body>
+</html>
